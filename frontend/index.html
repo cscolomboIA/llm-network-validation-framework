@@ -219,7 +219,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
       <div class="field-row">
         <div><div class="field-label">LLM Model</div><select id="modelSelect"><option value="llama-3.3-70b">Llama 3.3 70B</option></select></div>
         <div><div class="field-label">Policy type</div>
-          <select id="policySelect">
+          <select id="policySelect" onchange="loadDefaultIntent()">
             <option value="reachability">Reachability</option>
             <option value="waypoint">Waypoint</option>
             <option value="load-balancing">Load-Balancing</option>
@@ -979,6 +979,19 @@ function vbSleep(ms){return new Promise(r=>setTimeout(r,ms));}
 // ---- INIT ----
 checkConn();
 setInterval(checkConn, 30000);
+loadDefaultIntent();
+
+async function loadDefaultIntent() {
+  try {
+    const policy = document.getElementById('policySelect').value;
+    const r = await fetch(API + '/api/dataset/samples?policy_type=' + policy + '&limit=1');
+    const d = await r.json();
+    if (d.samples && d.samples.length > 0) {
+      document.getElementById('intentInput').value = d.samples[0].intent;
+      onIntentChange();
+    }
+  } catch {}
+}
 </script>
 </body>
 </html>

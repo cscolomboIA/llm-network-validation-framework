@@ -198,26 +198,18 @@ async def pipeline_run(req: PipelineRequest):
     rag = get_rag()
     rag_ctx = rag.retrieve(intent=req.intent, policy_type=req.policy_type, k=int(os.getenv("RAG_TOP_K", 3)))
 
-    # Fetch extra intents for batch — exclude intents too similar to the user's
-    extra_intents = []
-    if req.batch_size > 1:
-        samples = rag.get_samples(policy_type=req.policy_type, limit=req.batch_size + 20)
-        user_words = set(req.intent.lower().split())
+    # Fetch intents for batch from dataset sequentially.
+    # Intent #1 is always the first sample of the dataset for the given policy.
+    # Extra intents are the next N-1 samples in sequence.
+    all_dataset_samples = rag.get_samples(
+        policy_type=req.policy_type,
+        limit=req.batch_size + 1,
+    ).get("samples", [])
 
-        def is_too_similar(candidate: str) -> bool:
-            if candidate.strip() == req.intent.strip():
-                return True
-            cand_words = set(candidate.lower().split())
-            # Jaccard similarity > 0.7 means too similar
-            if not user_words | cand_words:
-                return False
-            jaccard = len(user_words & cand_words) / len(user_words | cand_words)
-            return jaccard > 0.7
-
-        extra_intents = [
-            s["intent"] for s in samples.get("samples", [])
-            if not is_too_similar(s["intent"])
-        ][: req.batch_size - 1]
+    # Use dataset samples directly — intent #1 is the first sample
+    if all_dataset_samples:
+        req.intent = all_dataset_samples[0]["intent"]
+    extra_intents = [s["intent"] for s in all_dataset_samples[1:req.batch_size]]
 
     all_intents = [req.intent] + extra_intents
 
