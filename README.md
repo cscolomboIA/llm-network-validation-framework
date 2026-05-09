@@ -8,6 +8,8 @@ Este repositório contém o artefato associado ao artigo **"Framework para Verif
 
 ![Pipeline em execução](docs/exemplo-pipeline.png)
 
+![Visual Builder](docs/exemplo-pipeline-2.png)
+
 ---
 
 # Estrutura do Repositório
