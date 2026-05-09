@@ -11,6 +11,10 @@
 
 ---
 
+## Demo
+
+![Pipeline em execução](docs/exemplo-pipeline.png)
+
 ## Visão Geral
 
 Este framework implementa um **pipeline preventivo multi-estágio** para verificar e validar configurações de rede geradas por LLMs antes de sua implantação em produção. A motivação central é demonstrar que **validade sintática não é condição suficiente** para garantir conectividade operacional.
