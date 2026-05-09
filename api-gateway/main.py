@@ -150,6 +150,19 @@ async def pipeline_run(req: PipelineRequest):
         k=int(os.getenv("RAG_TOP_K", 3)),
     )
 
+    # For batch_size > 1, fetch extra *different* intents from the dataset
+    extra_intents = []
+    if req.batch_size > 1:
+        samples = rag.get_samples(
+            policy_type=req.policy_type,
+            limit=req.batch_size + 5,
+        )
+        # Exclude the user's own intent to avoid duplicates
+        extra_intents = [
+            s["intent"] for s in samples.get("samples", [])
+            if s["intent"].strip() != req.intent.strip()
+        ][: req.batch_size - 1]
+
     result = {
         "stages": {},
         "all_pass": False,
@@ -163,6 +176,7 @@ async def pipeline_run(req: PipelineRequest):
         policy_type=req.policy_type,
         batch_size=req.batch_size,
         rag_context=rag_ctx,
+        extra_intents=extra_intents,
     )
     result["stages"]["1_syntactic"] = s1
     if s1["status"] != "pass":
