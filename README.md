@@ -1,352 +1,225 @@
-# NetValidAI — LLM Network Validation Framework
+# NetValidAI — Framework para Verificação e Validação Experimental de Configurações de Rede Geradas por LLMs
 
-[![SBRC 2026](https://img.shields.io/badge/SBRC-2026-blue)](https://sbrc.sbc.org.br)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-brightgreen)](https://www.python.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![Docker](https://img.shields.io/badge/docker-compose-blue)](docker-compose.yml)
+Este repositório contém o artefato associado ao artigo **"Framework para Verificação e Validação Experimental de Configurações de Rede Geradas por LLMs"**, aceito na Trilha Principal do **SBRC 2026**.
 
-> **Artigo aceito no SBRC 2026 — Trilha Principal**  
-> *Framework para Verificação e Validação Experimental de Configurações de Rede Geradas por LLMs*  
-> Cristiano da Silveira Colombo (UFES/IFES), Magnos Martinello (UFES)
-
----
+> **Resumo:** A utilização de Modelos de Linguagem de Grande Porte (LLMs) na geração de configurações e validação de políticas de rede tem recebido atenção crescente na literatura. Diferente da abordagem predominante que prioriza a acurácia da geração, este trabalho direciona seus esforços para o processo de verificação, avaliando a estabilidade sob carga (batch size) e a complexidade das intenções traduzidas de linguagem natural para requisitos técnicos. O artigo apresenta três contribuições: a proposição de uma arquitetura multi-estágio que integra a detecção de inconsistências lógicas à saída dos LLMs; a identificação do limite de confiabilidade dos modelos em relação ao tamanho do lote de tarefas; e a demonstração de que a validade sintática é um indicador insuficiente para garantir a conectividade operacional em redes de computadores.
 
 ## Demo
 
 ![Pipeline em execução](docs/exemplo-pipeline.png)
 
-## Visão Geral
-
-Este framework implementa um **pipeline preventivo multi-estágio** para verificar e validar configurações de rede geradas por LLMs antes de sua implantação em produção. A motivação central é demonstrar que **validade sintática não é condição suficiente** para garantir conectividade operacional.
-
-```
-Intenção (linguagem natural)
-        ↓
-  [Etapa 1] Verificação Sintática  →  JSON bem-formado?
-        ↓
-  [Etapa 2] Conformidade YANG      →  Schema e endereçamento IP válidos?
-        ↓
-  [Etapa 3] Verificação Semântica  →  Consistência lógica via DETOX + RAG?
-        ↓
-  [Etapa 4] Validação Mininet      →  Ping com 0% de perda no dataplane?
-        ↓
-  ✓ Configuração aprovada para implantação
-```
-
-### Principais achados do artigo
-
-| Observação | Evidência |
-|---|---|
-| Ponto de inflexão crítico em **batch size = 20** | Degradação estatisticamente significativa (p < 0,05) |
-| Claude 3.5 Sonnet: 100% sintático, **80% operacional** | Falso positivo da verificação sintática isolada |
-| Similaridade textual ≠ corretude funcional | ECDF: Llama-3.3-70b com sim ~0,6 mas 50% de sucesso no Mininet |
-| DeepSeek/Qwen-3: 0% na Política 3 | Proficiência generalista não garante corretude em infra |
-
 ---
 
-## Estrutura do Repositório
+# Estrutura do Repositório
 
 ```
 llm-network-validation-framework/
-├── api-gateway/          # FastAPI — ponto de entrada do pipeline
-│   ├── main.py
-│   ├── routers/
-│   └── requirements.txt
-├── verifier/             # Etapas 1–3: sintaxe, conformidade, semântica
-│   ├── syntactic.py
-│   ├── conformance.py
-│   ├── semantic.py
-│   └── detox.py
-├── rag-engine/           # RAG sobre o dataset NetConfEval
-│   ├── engine.py
-│   └── data/
-├── self-healing-agent/   # Autocorreção (até 3 tentativas)
-│   └── agent.py
-├── mininet-runner/       # Etapa 4: emulação e teste de conectividade
-│   ├── orchestrator.py
-│   └── runner.py
-├── frontend/             # Interface web (index.html)
-│   └── index.html
-├── scripts/              # Scripts de experimento e reprodução
-│   ├── run_benchmark.py
-│   └── batch_stress_test.py
-├── docs/                 # Documentação complementar
-│   ├── ARCHITECTURE.md
-│   └── RESULTS.md
-├── docker-compose.yml
+├── api-gateway/          # FastAPI — orquestrador do pipeline (main.py, Dockerfile, requirements.txt)
+├── verifier/             # Etapas 1–3: sintaxe (syntactic.py), conformidade (conformance.py), semântica (semantic.py)
+├── rag-engine/           # Motor RAG sobre o dataset NetConfEval (engine.py)
+├── self-healing-agent/   # Agente de autocorreção automática (agent.py)
+├── mininet-runner/       # Etapa 4: emulação Mininet e teste de conectividade (orchestrator.py)
+├── frontend/             # Interface web single-page (index.html)
+├── scripts/              # Scripts de benchmark e reprodução dos experimentos (run_benchmark.py)
+├── docs/                 # Documentação complementar e imagens
+├── docker-compose.yml    # Orquestração completa dos serviços
+├── .env.example          # Template de configuração de ambiente
 └── README.md
 ```
 
 ---
 
-## Pré-requisitos
+# Selos Considerados
 
-| Componente | Versão mínima | Observação |
-|---|---|---|
-| Python | 3.10 | Todos os módulos |
-| Mininet | 2.3 | Apenas para Etapa 4 (Linux) |
-| Ubuntu | 22.04 | Recomendado para Mininet |
-| Docker + Compose | 24.x | Alternativa sem instalar dependências |
-| Chave de API | — | OpenAI, Groq ou Anthropic |
+Os selos considerados são: **Disponível (SeloD)**, **Funcional (SeloF)** e **Sustentável (SeloS)**.
 
 ---
 
-## Instalação e Execução
+# Informações Básicas
 
-### Opção A — Docker Compose (recomendado para avaliadores)
+## Ambiente de execução
 
-A forma mais rápida de subir o ambiente completo (sem Mininet real):
+| Componente | Versão mínima |
+|---|---|
+| Python | 3.10+ |
+| Docker | 24.x |
+| Docker Compose | 1.29+ |
+| Sistema Operacional | Linux, macOS ou Windows (com WSL2) |
+| RAM | 4 GB mínimo |
+| Disco | 2 GB livres |
+
+## Recursos de hardware utilizados nos experimentos do artigo
+
+- CPU: Intel Xeon Gold
+- RAM: 128 GB
+- SO: Ubuntu 22.04
+
+## Chaves de API necessárias (ao menos uma)
+
+| Provedor | Modelos | Custo |
+|---|---|---|
+| Groq | Llama 3.3 70B, Mistral Large, DeepSeek, Qwen-3 | Gratuito |
+| Anthropic | Claude 3.5 Sonnet | Pago |
+| OpenAI | GPT-4, GPT-4 Turbo | Pago |
+
+> **Recomendação para avaliadores**: use a chave Groq (gratuita) em https://console.groq.com
+
+---
+
+# Dependências
+
+## Dependências Python (api-gateway/requirements.txt)
+
+```
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.7.0
+httpx>=0.27.0
+python-dotenv>=1.0.1
+openai>=1.30.0
+anthropic>=0.28.0
+groq>=0.9.0
+scikit-learn>=1.4.0
+numpy>=1.26.0
+```
+
+## Dataset
+
+O artefato utiliza o dataset **NetConfEval** [Dahlmann et al., ACM SIGCOMM CCR 2024] como ground truth para a Etapa 3 (verificação semântica via RAG). Um subconjunto de 20 amostras representativas está embutido diretamente no código (`rag-engine/engine.py`) para uso imediato sem necessidade de download externo.
+
+---
+
+# Preocupações com Segurança
+
+- O arquivo `.env` contém chaves de API pessoais e **nunca deve ser compartilhado ou commitado**. O repositório inclui apenas o `.env.example` como template.
+- A Etapa 4 (Mininet real) requer privilégios `sudo` no Linux. Em modo `simulated` (padrão no Docker), nenhum privilégio especial é necessário.
+- Não há riscos à segurança dos avaliadores ao executar o artefato em modo simulado.
+
+---
+
+# Instalação
+
+## Opção A — Docker Compose (recomendada para avaliadores)
 
 ```bash
+# 1. Clonar o repositório
 git clone https://github.com/cscolomboIA/llm-network-validation-framework.git
 cd llm-network-validation-framework
 
-# Configure as chaves de API
+# 2. Configurar o ambiente
 cp .env.example .env
-# Edite .env com suas chaves (OpenAI, Groq, Anthropic)
+nano .env  # adicione ao menos uma chave de API (recomendamos GROQ_API_KEY)
 
+# 3. Subir os serviços
 docker-compose up --build
 ```
 
-O frontend estará disponível em `http://localhost:8080` e a API em `http://localhost:8000`.
+Aguarde até aparecer `api_1 | INFO: Application startup complete.`
 
-> **Nota**: sem Mininet instalado, a Etapa 4 roda em modo simulado. Para validação real, use a Opção B.
+- **Frontend**: http://localhost:8080
+- **API**: http://localhost:8000
 
----
-
-### Opção B — Instalação local (com Mininet real)
+## Opção B — Instalação local (sem Docker)
 
 ```bash
 git clone https://github.com/cscolomboIA/llm-network-validation-framework.git
 cd llm-network-validation-framework
 
-# Instalar dependências Python
 pip install -r api-gateway/requirements.txt
 
-# Configurar ambiente
 cp .env.example .env
-# Edite .env com suas chaves de API
+nano .env  # adicione ao menos uma chave de API
 
-# Instalar Mininet (Ubuntu 22.04)
-sudo apt-get install mininet -y
-
-# Subir a API
+# Terminal 1 — API
 cd api-gateway
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-# Em outro terminal: servir o frontend
+# Terminal 2 — Frontend
 cd frontend
 python -m http.server 8080
 ```
 
 ---
 
-## Configuração (.env)
+# Teste Mínimo
 
-```env
-# Chaves de API dos modelos (ao menos uma obrigatória)
-OPENAI_API_KEY=sk-...
-GROQ_API_KEY=gsk_...
-ANTHROPIC_API_KEY=sk-ant-...
-
-# Modo de execução da Etapa 4
-# "real"      → Mininet instalado localmente (Linux)
-# "simulated" → retorna resultado simulado (qualquer OS)
-MININET_MODE=simulated
-
-# Caminho do dataset NetConfEval (baixado automaticamente se vazio)
-NETCONFEVAL_PATH=./rag-engine/data/netconfeval.json
-```
-
----
-
-## Uso via Interface Web
-
-1. Abra `http://localhost:8080` no navegador  
-2. Digite uma intenção de rede no campo **Network Intent**, por exemplo:
-   ```
-   Traffic originating from lyon can reach the subnet 100.0.8.0/24.
-   ```
-3. Selecione o **modelo LLM**, o **tipo de política** e o **batch size**
-4. Clique em **▶ Run Pipeline**
-5. Acompanhe as 4 etapas em tempo real nos painéis de resultado
-
-Você também pode usar o botão **"pick from NetConfEval dataset"** para selecionar amostras reais do benchmark com 1.665 intents catalogados.
-
----
-
-## Uso via API (curl)
+Após a instalação, verifique se a API está respondendo:
 
 ```bash
-# Verificar saúde da API
 curl http://localhost:8000/health
+# Esperado: {"status": "ok", "version": "2.0.0"}
+```
 
-# Executar pipeline completo
+Acesse http://localhost:8080 e execute com o intent de exemplo:
+
+```
+Traffic originating from lyon can reach the subnet 100.0.8.0/24.
+```
+
+Configurações:
+- Modelo: Llama 3.3 70B
+- Policy type: Reachability
+- Batch size: 1
+
+**Resultado esperado**: todas as 4 etapas com status PASS e similaridade ~100%, conforme Tabela 2 do artigo.
+
+Ou via API:
+
+```bash
 curl -X POST http://localhost:8000/api/pipeline/run \
   -H "Content-Type: application/json" \
   -d '{
     "intent": "Traffic originating from lyon can reach the subnet 100.0.8.0/24.",
-    "model": "claude-3-5-sonnet",
+    "model": "llama-3.3-70b",
     "policy_type": "reachability",
     "batch_size": 1
-  }'
-
-# Listar modelos disponíveis
-curl http://localhost:8000/api/models
-
-# Buscar amostras do dataset
-curl "http://localhost:8000/api/dataset/samples?policy_type=reachability&limit=10"
-```
-
-### Resposta de exemplo
-
-```json
-{
-  "all_pass": true,
-  "stages": {
-    "1_syntactic": {
-      "status": "pass",
-      "model": "claude-3-5-sonnet",
-      "config": { "source": "lyon", "destination": "100.0.8.0/24", ... }
-    },
-    "2_conformance": {
-      "status": "pass",
-      "detail": {
-        "similarity_score": 0.97,
-        "conflicts": [],
-        "checks": [
-          { "name": "YANG Schema", "passed": true, "detail": "Valid structure" },
-          { "name": "IPv4 Addressing", "passed": true, "detail": "No conflicts" },
-          { "name": "Host Identifiers", "passed": true, "detail": "Normalized" },
-          { "name": "DETOX — Logical conflicts", "passed": true, "detail": "No anomalies" }
-        ]
-      }
-    },
-    "4_mininet": {
-      "status": "pass",
-      "detail": {
-        "ping_output": "3 packets transmitted, 3 received, 0% loss",
-        "packet_loss": 0
-      }
-    }
-  },
-  "rag_context": {
-    "ground_truth_count": 3,
-    "examples": [...]
-  }
-}
+  }' | python3 -m json.tool
 ```
 
 ---
 
-## Reproduzindo os Experimentos do Artigo
+# Experimentos
 
-### Benchmark completo (Task 1 do NetConfEval — 1.665 amostras)
+## Reivindicação #1 — Ponto de inflexão crítico no batch size = 20
+
+O artigo demonstra que a acurácia sintática dos LLMs degrada significativamente a partir de 20 tarefas simultâneas (Figura 2).
 
 ```bash
 python scripts/run_benchmark.py \
-  --models claude-3-5-sonnet gpt-4-azure llama-3.3-70b mistral-large \
-  --policy_types reachability waypoint load-balancing \
+  --models llama-3.3-70b \
+  --policy_types reachability \
   --batch_sizes 1 3 5 9 20 33 50 100 \
-  --output results/benchmark_$(date +%Y%m%d).json
-```
-
-> Tempo estimado: 4–8 horas dependendo dos modelos e limites de rate.
-
-### Teste de estresse de batch size
-
-```bash
-python scripts/batch_stress_test.py \
-  --model claude-3-5-sonnet \
-  --policy reachability \
-  --max_batch 100 \
-  --step 5 \
+  --samples_per_cell 5 \
   --output results/batch_stress.json
 ```
 
-### Plotar resultados (reproduz as Figuras 2, 3 e 4 do artigo)
+**Tempo estimado**: 15–30 minutos.
+**Resultado esperado**: queda na acurácia sintática a partir do batch size 20.
+
+## Reivindicação #2 — Validade sintática não garante corretude operacional
+
+Execute o pipeline via interface web com diferentes batch sizes e observe a divergência entre o resultado da Etapa 1 (sintático) e da Etapa 4 (Mininet).
+
+## Reivindicação #3 — Similaridade textual não prediz corretude funcional
 
 ```bash
-python scripts/plot_results.py \
-  --input results/benchmark_*.json \
-  --output figs/
+python scripts/run_benchmark.py \
+  --models llama-3.3-70b \
+  --policy_types load-balancing \
+  --batch_sizes 1 \
+  --samples_per_cell 10 \
+  --output results/similarity_vs_operational.json
 ```
 
----
-
-## Módulos do Pipeline
-
-### `verifier/syntactic.py` — Etapa 1
-
-Isola o objeto JSON da resposta do LLM, removendo explicações textuais e delimitadores Markdown. Retorna `status: pass` apenas para JSON parseável e sem verbosidade.
-
-### `verifier/conformance.py` + `verifier/detox.py` — Etapa 2
-
-Valida o JSON contra o schema YANG do NetConfEval. O módulo DETOX detecta conflitos lógicos como shadowing de regras, rotas recursivas e inconsistências de endereçamento.
-
-### `rag-engine/engine.py` — Etapa 3 (RAG)
-
-Implementa Retrieval-Augmented Generation sobre o dataset NetConfEval. Recupera as `k` amostras mais similares (embedding por TF-IDF + cosine similarity) e calcula a `similarity_score` entre a configuração gerada e o ground truth.
-
-### `self-healing-agent/agent.py` — Autocorreção
-
-Quando qualquer etapa falha, o agente reformula o prompt incorporando o feedback de erro e reenvia ao LLM (até 3 tentativas). Inspirado na abordagem de [Hachimi et al. 2025], mas de forma preventiva.
-
-### `mininet-runner/orchestrator.py` — Etapa 4
-
-Traduz o JSON verificado em comandos Mininet. Instancia a topologia, configura as tabelas de roteamento e executa `ping -c 3` entre os hosts definidos na intenção. O indicador de sucesso é 0% de perda de pacotes.
+Analise o campo `similarity_score` vs `4_mininet.status` nos resultados.
 
 ---
 
-## Limitações Conhecidas
+# LICENSE
 
-- Avaliação restrita à Task 1 do NetConfEval (Reachability, Waypoint, Load-Balancing)
-- Execução única por configuração (sem análise de variância estatística completa)
-- Etapa 4 requer Linux com Mininet; em outros SOs funciona em modo simulado
-- Custo computacional e escalabilidade não foram avaliados formalmente
-
----
-
-## Trabalhos Futuros
-
-- Mecanismo de self-healing com retroalimentação dos logs de erro do Mininet
-- Integração com verificadores formais (Batfish)
-- Suporte a RAG com embeddings densos (sentence-transformers)
-- Extensão para Tasks 2 e 3 do NetConfEval
-- Integração do pipeline a arquiteturas baseadas em agentes de IA
-
----
-
-## Referências Principais
-
-- **NetConfEval**: Dahlmann et al., ACM SIGCOMM CCR 2024  
-- **DETOX**: Jesus et al., WTF/SBRC 2016  
-- **Mininet**: Lantz et al., HotNets 2010  
-- **Lost in the Middle**: Liu et al., TACL 2024  
-
----
-
-## Citação
-
-```bibtex
-@inproceedings{colombo2026netvalidai,
-  title     = {Framework para Verificação e Validação Experimental de
-               Configurações de Rede Geradas por LLMs},
-  author    = {Colombo, Cristiano da Silveira and Martinello, Magnos},
-  booktitle = {Anais do XLIV Simpósio Brasileiro de Redes de Computadores
-               e Sistemas Distribuídos (SBRC)},
-  year      = {2026},
-  publisher = {SBC}
-}
-```
-
----
-
-## Licença
-
-MIT License — veja [LICENSE](LICENSE).
+MIT License — Copyright (c) 2026 Cristiano da Silveira Colombo, Magnos Martinello
 
 ## Contato
 
-- Cristiano Colombo — [cristianos@ifes.edu.br](mailto:cristianos@ifes.edu.br)  
-- Magnos Martinello — [magnos@inf.ufes.br](mailto:magnos@inf.ufes.br)
+- Cristiano Colombo — cristianos@ifes.edu.br
+- Magnos Martinello — magnos@inf.ufes.br
