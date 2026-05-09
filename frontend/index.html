@@ -587,17 +587,26 @@ let lastBatchData={intents:[],configs:[],model:''};
 
 function stageIcon(stages, key) {
   const s = stages && stages[key];
-  if (!s) return '<span style="color:#ccc">—</span>';
+  if (!s) return '<span style="color:#ccc;font-size:12px">—</span>';
   return s.status === 'pass'
     ? '<span style="color:#16a34a;font-size:14px">✓</span>'
     : '<span style="color:#dc2626;font-size:14px">✗</span>';
+}
+
+function stageDetail(stages, key) {
+  const s = stages && stages[key];
+  if (!s) return '<span style="color:#ccc;font-size:9px">não executado</span>';
+  if (s.status === 'pass') return '';
+  const checks = s.detail && s.detail.checks ? s.detail.checks.filter(c=>!c.passed).map(c=>c.name).join(', ') : '';
+  const err = checks || s.error || '';
+  return err ? `<div style="font-size:9px;color:#dc2626;margin-top:2px">${err}</div>` : '';
 }
 
 function fmtJson(obj) {
   if (!obj || Object.keys(obj).length === 0) return '<span style="color:#ccc;font-size:10px">—</span>';
   return '<pre style="font-size:9.5px;line-height:1.5;color:#4a5c78;white-space:pre-wrap;margin:0">' +
     JSON.stringify(obj, null, 2)
-      .replace(/"([\w-]+)":/g, '<span style="color:#2563eb">"$1"</span>:')
+      .replace(/"(source|destination|action|protocol|priority)":/g, '<span style="color:#2563eb">"$1"</span>:')
       .replace(/: "([^"]+)"/g, ': <span style="color:#16a34a">"$1"</span>')
       .replace(/: (\d+)/g, ': <span style="color:#7c3aed">$1</span>') +
     '</pre>';
@@ -614,12 +623,10 @@ function openBatchReport(e){
     const br = hasFull ? batchResults[i] : null;
     const allPass = br ? br.all_pass : null;
     const stages = br ? br.stages : {};
-    const indivCfg = stages['1_syntactic'] ? stages['1_syntactic'].config : {};
 
-    // Detect dropout: batch JSON differs significantly from individual
+    // Dropout: LLM omitted or corrupted destination under batch stress
     const batchDst = batchCfg.destination || '';
-    const indivDst = indivCfg ? (indivCfg.destination || '') : '';
-    const hasDropout = batchDst !== indivDst && (batchDst === '' || batchDst === '0.0.0.0/0');
+    const hasDropout = batchDst === '' || batchDst === '0.0.0.0/0';
 
     const badge = allPass === null ? '' :
       allPass
@@ -631,9 +638,17 @@ function openBatchReport(e){
       : '';
 
     const stagesCols = hasFull ? `
-      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;text-align:center;vertical-align:middle">${stageIcon(stages,'1_syntactic')}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;text-align:center;vertical-align:middle">${stageIcon(stages,'2_conformance')}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;text-align:center;vertical-align:middle">${stageIcon(stages,'4_mininet')}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;text-align:center;vertical-align:top">
+        ${stageIcon(stages,'1_syntactic')}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;text-align:center;vertical-align:top">
+        ${stageIcon(stages,'2_conformance')}
+        ${stageDetail(stages,'2_conformance')}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;text-align:center;vertical-align:top">
+        ${stageIcon(stages,'4_mininet')}
+        ${stageDetail(stages,'4_mininet')}
+      </td>
       <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;text-align:center;vertical-align:middle">${badge}</td>
     ` : '';
 
@@ -642,38 +657,25 @@ function openBatchReport(e){
         ${isFirst?'<span style="font-size:9px;background:#2563eb;color:#fff;border-radius:3px;padding:1px 5px;margin-right:4px">sua intent</span>':''}#${i+1}
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;font-size:11px;color:#1e2a3a;vertical-align:top;max-width:220px">${intent}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;vertical-align:top;max-width:200px;border-right:2px dashed #e4e8f2">
+      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;vertical-align:top;max-width:220px">
         ${fmtJson(batchCfg)}${dropoutBadge}
-      </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;vertical-align:top;max-width:200px">
-        ${hasFull ? fmtJson(indivCfg) : ''}
       </td>
       ${stagesCols}
     </tr>`;
   }).join('');
 
-  const extraThs = hasFull
-    ? '<th style="text-align:center">Sintática</th><th style="text-align:center">Conformidade</th><th style="text-align:center">Mininet</th><th style="text-align:center">Resultado</th>'
-    : '';
-
   const summary = (() => {
     if (!hasFull) return '';
     const passed = batchResults.filter(r=>r.all_pass).length;
     const failed = batchResults.length - passed;
-    const s1fail = batchResults.filter(r=>r.stages&&r.stages['1_syntactic']&&r.stages['1_syntactic'].status!=='pass').length;
     const s2fail = batchResults.filter(r=>r.stages&&r.stages['2_conformance']&&r.stages['2_conformance'].status!=='pass').length;
     const s4fail = batchResults.filter(r=>r.stages&&r.stages['4_mininet']&&r.stages['4_mininet'].status!=='pass').length;
-    const dropouts = batchConfigs.filter((cfg,i)=>{
-      const br = batchResults[i];
-      const indivCfg = br&&br.stages&&br.stages['1_syntactic']?br.stages['1_syntactic'].config:{};
-      const bd = cfg.destination||''; const id = indivCfg?(indivCfg.destination||''):'';
-      return bd !== id && (bd===''||bd==='0.0.0.0/0');
-    }).length;
+    const dropouts = batchConfigs.filter(cfg=>!cfg.destination||cfg.destination==='0.0.0.0/0').length;
     return `<div class="summary">
       <strong>Resumo do batch:</strong>
       ${passed} de ${batchResults.length} intents validadas com sucesso (${failed} falhas) &nbsp;·&nbsp;
-      Falhas por etapa — Sintática: ${s1fail} · Conformidade: ${s2fail} · Mininet: ${s4fail}
-      ${dropouts>0?`&nbsp;·&nbsp; <span style="color:#d97706">⚠ Batch dropout detectado em ${dropouts} intent(s) — o JSON gerado no batch diverge do processamento individual</span>`:''}
+      Falhas — Conformidade: ${s2fail} · Mininet: ${s4fail}
+      ${dropouts>0?`&nbsp;·&nbsp; <span style="color:#d97706">⚠ Batch dropout em ${dropouts} intent(s) — o LLM omitiu parâmetros críticos sob stress de contexto</span>`:''}
     </div>`;
   })();
 
@@ -681,44 +683,37 @@ function openBatchReport(e){
   <title>Batch Report — NetValidAI</title>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#f4f6fa;--bg2:#fff;--border:rgba(60,100,200,.10);--accent:#2563eb;--success:#16a34a;--danger:#dc2626;--text:#1e2a3a;--text2:#4a5c78;--text3:#8a9bb8}
+    :root{--bg:#f4f6fa;--bg2:#fff;--border:rgba(60,100,200,.10)}
     *{box-sizing:border-box;margin:0;padding:0}
-    body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;padding:28px}
+    body{background:var(--bg);color:#1e2a3a;font-family:'JetBrains Mono',monospace;font-size:13px;padding:28px}
     h1{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:4px}
-    .sub{font-size:11px;color:var(--text3);margin-bottom:16px;line-height:1.8}
-    .legend{display:flex;gap:16px;margin-bottom:16px;font-size:10px;color:var(--text3);align-items:center}
-    .legend span{display:flex;align-items:center;gap:4px}
-    .col-header{display:grid;grid-template-columns:60px 1fr 1fr 1fr;gap:0;margin-bottom:4px;padding:0 0 0 0}
+    .sub{font-size:11px;color:#8a9bb8;margin-bottom:16px;line-height:1.8}
+    .legend{display:flex;gap:16px;margin-bottom:16px;font-size:10px;color:#8a9bb8;align-items:center;flex-wrap:wrap}
     table{width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
-    th{padding:9px 10px;background:rgba(37,99,235,.05);font-size:9px;color:var(--text3);text-align:left;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+    th{padding:9px 10px;background:rgba(37,99,235,.05);font-size:9px;color:#8a9bb8;text-align:left;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--border)}
     tr:last-child td{border-bottom:none}
-    .summary{margin-top:20px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--text2);line-height:1.8}
-    .summary strong{color:var(--text)}
+    .summary{margin-top:20px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;color:#4a5c78;line-height:1.8}
+    .summary strong{color:#1e2a3a}
   </style></head><body>
   <h1>Batch Report — NetValidAI</h1>
   <div class="sub">
     Modelo: <strong>${model}</strong> &nbsp;·&nbsp;
-    <strong>${intents.length}</strong> intents enviadas simultaneamente ao LLM &nbsp;·&nbsp;
-    Os painéis principais exibem o resultado da <strong>intent #1</strong> (sua intent)
+    <strong>${intents.length}</strong> intents enviadas simultaneamente ao LLM em um único prompt &nbsp;·&nbsp;
+    Etapas 2–4 executadas com o JSON gerado sob stress de batch
   </div>
   <div class="legend">
     <span>✓ <span style="color:#16a34a">PASS</span></span>
     <span>✗ <span style="color:#dc2626">FAIL</span></span>
-    <span>— não executado</span>
-    <span style="background:#fffbeb;color:#d97706;border:1px solid rgba(217,119,6,.3);border-radius:3px;padding:1px 6px">⚠ batch dropout</span> = JSON diverge do processamento individual
+    <span>— não executado (etapa anterior falhou)</span>
+    <span style="background:#fffbeb;color:#d97706;border:1px solid rgba(217,119,6,.3);border-radius:3px;padding:1px 6px">⚠ batch dropout</span>
   </div>
   <table>
     <thead>
       <tr>
-        <th rowspan="2">#</th>
-        <th rowspan="2">Intent enviada ao LLM</th>
-        <th colspan="2" style="text-align:center;border-bottom:1px solid #e4e8f2">JSON gerado</th>
-        ${hasFull ? '<th colspan="4" style="text-align:center">Pipeline individual (sem stress de batch)</th>' : ''}
-      </tr>
-      <tr>
-        <th style="border-right:2px dashed #e4e8f2">No batch (sob stress)</th>
-        <th>Individual (sem stress)</th>
-        ${extraThs}
+        <th>#</th>
+        <th>Intent enviada ao LLM</th>
+        <th>JSON gerado sob stress de batch</th>
+        ${hasFull ? '<th style="text-align:center">Sintática</th><th style="text-align:center">Conformidade</th><th style="text-align:center">Mininet</th><th style="text-align:center">Resultado</th>' : ''}
       </tr>
     </thead>
     <tbody>${rows}</tbody>
