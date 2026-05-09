@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetValidAI — Network Intent Validation Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f4f6fa;--bg2:#fff;--bg3:#eef1f7;--bg4:#e4e8f2;
+  --border:rgba(60,100,200,.10);--border2:rgba(60,100,200,.22);
+  --accent:#2563eb;--accent2:#3b82f6;
+  --success:#16a34a;--sbg:#f0fdf4;--sbord:rgba(22,163,74,.25);
+  --warn:#d97706;--wbg:#fffbeb;
+  --danger:#dc2626;--dbg:#fef2f2;--dbord:rgba(220,38,38,.22);
+  --text:#1e2a3a;--text2:#4a5c78;--text3:#8a9bb8;
+  --mono:'JetBrains Mono',monospace;--display:'Syne',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.6;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between;padding:10px 22px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.logo{font-family:var(--display);font-size:19px;font-weight:800;letter-spacing:-.5px;color:var(--text)}
+.logo span{color:var(--accent)}
+.header-right{display:flex;gap:8px;align-items:center}
+.tag{font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(37,99,235,.08);border:1px solid var(--border);color:var(--accent);letter-spacing:.4px}
+.tag.live{background:rgba(22,163,74,.08);border-color:rgba(22,163,74,.2);color:var(--success)}
+.conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:4px;transition:background .3s}
+.conn-dot.ok{background:var(--success)}.conn-dot.err{background:var(--danger)}
+#connLabel{font-size:11px;color:var(--text3)}
+
+/* TABS */
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 22px;gap:2px;flex-shrink:0}
+.tab{padding:8px 16px;font-size:11px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .18s;letter-spacing:.3px;user-select:none}
+.tab:hover{color:var(--text2)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* TAB CONTENT */
+.tab-content{display:none;flex:1;overflow:hidden}
+.tab-content.active{display:flex;flex-direction:column;flex:1;overflow:hidden}
+
+/* ===================== PIPELINE TAB ===================== */
+.workspace{display:grid;grid-template-columns:290px 1fr;flex:1;overflow:hidden}
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;position:relative}
+.sidebar-section{padding:13px 15px;border-bottom:1px solid var(--border)}
+.sidebar-section.grow{flex:1;overflow-y:auto}
+.slabel{font-size:10px;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.slabel::after{content:'';flex:1;height:1px;background:var(--border)}
+textarea{width:100%;min-height:78px;resize:none;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;line-height:1.6;transition:border-color .2s}
+textarea:focus{border-color:var(--border2);background:var(--bg2)}
+textarea::placeholder{color:var(--text3)}
+textarea.invalid{border-color:var(--dbord)!important;background:var(--dbg)!important}
+textarea.valid{border-color:var(--sbord)!important}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.field-label{font-size:10px;color:var(--text3);margin-bottom:4px}
+select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-family:var(--mono);font-size:11px;color:var(--text2);outline:none;cursor:pointer;transition:border-color .2s}
+select:focus{border-color:var(--border2)}
+.batch-row{display:flex;align-items:center;gap:10px;margin-top:7px}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--bg4);border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg2)}
+.batch-val{font-size:13px;font-weight:600;color:var(--accent);min-width:26px;text-align:right}
+.batch-warn{font-size:10px;padding:2px 7px;border-radius:3px;background:var(--wbg);color:var(--warn);border:1px solid rgba(217,119,6,.25);display:none;margin-top:4px}
+.intent-error{font-size:10px;padding:5px 8px;border-radius:5px;background:var(--dbg);color:var(--danger);border:1px solid var(--dbord);margin-top:5px;display:none;line-height:1.5}
+.intent-ok{font-size:10px;padding:4px 8px;border-radius:5px;background:var(--sbg);color:var(--success);border:1px solid var(--sbord);margin-top:5px;display:none}
+.run-btn{width:100%;margin-top:10px;padding:9px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-family:var(--display);font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.3px;transition:all .18s}
+.run-btn:hover{background:#1d4ed8;transform:translateY(-1px)}.run-btn:active{transform:none}.run-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.hist-item{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:6px;cursor:pointer;transition:background .12s;border:1px solid transparent;margin-bottom:3px}
+.hist-item:hover{background:var(--bg3);border-color:var(--border)}
+.hist-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.hist-text{font-size:11px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist-badge{font-size:9px;padding:2px 5px;border-radius:3px;flex-shrink:0;font-weight:500}
+.main-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+.pipeline-bar{padding:8px 18px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:3px;flex-shrink:0}
+.stg{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:6px;font-size:11px;color:var(--text3);transition:all .25s;white-space:nowrap;border:1px solid transparent}
+.stg.running{color:var(--accent);background:rgba(37,99,235,.07);border-color:rgba(37,99,235,.18)}
+.stg.pass{color:var(--success);background:var(--sbg);border-color:var(--sbord)}
+.stg.fail{color:var(--danger);background:var(--dbg);border-color:var(--dbord)}
+.stg-num{width:17px;height:17px;border-radius:50%;border:1px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500}
+.stg.running .stg-num{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.pipe-arr{color:var(--text3);font-size:13px;margin:0 1px}
+.status-badge{font-size:10px;padding:3px 8px;border-radius:4px;font-weight:500}
+.status-badge.idle{background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
+.status-badge.running{background:rgba(37,99,235,.08);color:var(--accent);border:1px solid rgba(37,99,235,.2)}
+.status-badge.pass{background:var(--sbg);color:var(--success);border:1px solid var(--sbord)}
+.status-badge.fail{background:var(--dbg);color:var(--danger);border:1px solid var(--dbord)}
+.info-bar{padding:5px 18px;font-size:11px;color:var(--text3);background:rgba(37,99,235,.03);border-bottom:1px solid var(--border);flex-shrink:0}
+.info-bar span{color:var(--accent);font-weight:500}
+.content{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:var(--border);flex:1;overflow:hidden}
+.panel{background:var(--bg2);display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.panel-header{padding:8px 13px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-title{font-size:11px;font-weight:500;color:var(--text2)}
+.panel-body{flex:1;overflow-y:auto;padding:10px 13px}
+.code-block{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 11px;font-size:10.5px;color:var(--text2);white-space:pre;overflow-x:auto;line-height:1.65}
+.check-item{display:flex;align-items:flex-start;gap:7px;padding:7px 9px;border-radius:6px;margin-bottom:4px;border:1px solid var(--border);font-size:11px;transition:all .25s;background:var(--bg2)}
+.check-item.pass{border-color:var(--sbord);background:var(--sbg)}
+.check-item.fail{border-color:var(--dbord);background:var(--dbg)}
+.check-item.pending{opacity:.5}
+.ci-icon{font-size:12px;flex-shrink:0;margin-top:1px}
+.ci-title{font-size:11px;font-weight:500;color:var(--text)}
+.ci-desc{font-size:10px;color:var(--text3);margin-top:2px}
+.metrics-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.metric-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:8px;text-align:center}
+.metric-val{font-family:var(--display);font-size:20px;font-weight:700}
+.metric-val.green{color:var(--success)}.metric-val.blue{color:var(--accent)}.metric-val.warn{color:var(--warn)}.metric-val.red{color:var(--danger)}
+.metric-lbl{font-size:9px;color:var(--text3);margin-top:2px;letter-spacing:.5px;text-transform:uppercase}
+.ping-output{background:var(--bg3);border:1px solid var(--sbord);border-radius:6px;padding:9px 11px;font-size:11px;color:var(--success);font-family:var(--mono);line-height:1.7;margin-top:7px;white-space:pre-wrap}
+.ping-output.fail{border-color:var(--dbord);color:var(--danger)}
+.empty-state{color:var(--text3);font-size:11px;padding:18px 0;text-align:center}
+.topo-wrap{margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px}
+.diff-wrap{margin-top:8px;border:1px solid var(--dbord);border-radius:6px;overflow:hidden}
+.diff-header{display:grid;grid-template-columns:1fr 1fr;background:var(--dbg)}
+.diff-col-label{font-size:10px;padding:5px 10px;font-weight:500;letter-spacing:.4px;border-bottom:1px solid var(--dbord)}
+.diff-cols{display:grid;grid-template-columns:1fr 1fr}
+.diff-col{padding:8px 10px;font-family:var(--mono);font-size:10px;line-height:1.7;overflow-x:auto;white-space:pre}
+.diff-col:first-child{border-right:1px solid var(--dbord)}
+.diff-col.generated{color:var(--danger)}.diff-col.expected{color:var(--success)}
+/* SAMPLER */
+.sampler-btn{margin-top:6px;width:100%;padding:5px 8px;font-size:11px;font-family:var(--mono);background:transparent;border:1px dashed var(--border2);border-radius:5px;color:var(--text3);cursor:pointer;text-align:left;transition:all .15s}
+.sampler-btn:hover{color:var(--text2);border-color:var(--accent)}
+#samplerOverlay{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.15);z-index:100}
+.sampler-panel{position:absolute;left:10px;top:10px;bottom:10px;width:260px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+
+/* ===================== VISUAL BUILDER TAB ===================== */
+.vb-root{display:flex;flex-direction:column;flex:1;overflow:hidden;background:var(--bg3)}
+.vb-topbar{display:flex;align-items:center;padding:0 14px;height:40px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;gap:10px}
+.vb-title{font-size:12px;font-weight:500;color:var(--text2)}
+.vb-sep{width:0.5px;height:18px;background:var(--border)}
+.vb-hint{font-size:10px;color:var(--text3)}
+.vb-run{margin-left:auto;padding:5px 16px;font-size:11px;font-weight:500;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:var(--mono);transition:opacity .15s}
+.vb-run:hover{opacity:.85}.vb-run:disabled{opacity:.35;cursor:not-allowed}
+.vb-reset{padding:5px 10px;font-size:11px;background:transparent;color:var(--text3);border:0.5px solid var(--border);border-radius:6px;cursor:pointer;font-family:var(--mono)}
+.vb-reset:hover{color:var(--text2)}
+.vb-canvas{flex:1;position:relative;overflow:hidden}
+#vbSvg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+/* VB blocks */
+.vb-block{position:absolute;background:var(--bg2);border:0.5px solid var(--border2);border-radius:10px;cursor:default;transition:border-color .15s;width:158px}
+.vb-block:hover{border-color:var(--border)}
+.vb-block.running{border-color:var(--accent);animation:vbpulse .7s ease-in-out infinite alternate}
+.vb-block.pass{border-color:var(--success)}
+.vb-block.fail{border-color:var(--danger)}
+@keyframes vbpulse{from{box-shadow:0 0 0 2px rgba(37,99,235,.08)}to{box-shadow:0 0 0 5px rgba(37,99,235,.16)}}
+.vb-head{display:flex;align-items:center;gap:7px;padding:9px 10px 7px;cursor:grab;border-radius:10px 10px 0 0;border-bottom:0.5px solid var(--border)}
+.vb-head:active{cursor:grabbing}
+.vb-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.vb-title-t{font-size:11px;font-weight:500;color:var(--text);flex:1}
+.vb-stage{font-size:9px;color:var(--text3);letter-spacing:.5px}
+.vb-body{padding:8px 10px 10px}
+.vb-lbl{font-size:9px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
+.vb-body select,.vb-body textarea,.vb-body input[type=text]{width:100%;font-size:10px;font-family:var(--mono);background:var(--bg3);border:0.5px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--text);outline:none;margin-bottom:5px;resize:none}
+.vb-body textarea{height:44px;line-height:1.4}
+.vb-body input[type=range]{width:100%;margin-bottom:3px}
+.vb-result{font-size:10px;padding:4px 7px;border-radius:4px;margin-top:3px;line-height:1.4;background:var(--bg3);color:var(--text3)}
+.vb-result.ok{background:var(--sbg);color:var(--success)}
+.vb-result.err{background:var(--dbg);color:var(--danger)}
+.vb-port-out{width:10px;height:10px;border-radius:50%;background:var(--bg4);border:1.5px solid var(--border2);position:absolute;right:-5px;top:50%;transform:translateY(-50%)}
+.vb-port-in{width:10px;height:10px;border-radius:50%;background:var(--bg4);border:1.5px solid var(--border2);position:absolute;left:-5px;top:50%;transform:translateY(-50%)}
+.vb-port-out.ok,.vb-port-in.ok{background:var(--success);border-color:var(--success)}
+.vb-port-out.err,.vb-port-in.err{background:var(--danger);border-color:var(--danger)}
+/* VB statusbar */
+.vb-status{height:26px;padding:0 14px;display:flex;align-items:center;gap:8px;background:var(--bg2);border-top:1px solid var(--border);flex-shrink:0;font-size:10px;color:var(--text3)}
+.vb-sdot{width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0}
+.vb-sdot.ok{background:var(--success)}.vb-sdot.run{background:var(--accent);animation:vbdpulse 1s infinite}.vb-sdot.err{background:var(--danger)}
+@keyframes vbdpulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">Net<span>ValidAI</span></div>
+  <div class="header-right">
+    <span class="conn-dot" id="connDot"></span>
+    <span id="connLabel">checking...</span>
+    <span class="tag live" style="margin-left:6px">● live</span>
+    <span class="tag">v2.0</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('pipeline',this)">Pipeline</div>
+  <div class="tab" onclick="switchTab('visual',this)">Visual Builder</div>
+</div>
+
+<!-- =================== PIPELINE TAB =================== -->
+<div class="tab-content active" id="tab-pipeline">
+<div class="workspace">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="slabel">Network Intent</div>
+      <textarea id="intentInput" placeholder="Describe the network intent...&#10;e.g. Traffic from lyon can reach 100.0.8.0/24." oninput="onIntentChange()">Traffic originating from lyon can reach the subnet 100.0.8.0/24.</textarea>
+      <div class="intent-error" id="intentError">—</div>
+      <div class="intent-ok" id="intentOk">✓ Valid network intent</div>
+      <button class="sampler-btn" onclick="openSampler()">⊞ pick from NetConfEval dataset (1665 samples)</button>
+      <!-- SAMPLER OVERLAY -->
+      <div id="samplerOverlay" onclick="closeSampler(event)">
+        <div class="sampler-panel" onclick="event.stopPropagation()">
+          <div style="padding:11px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+            <span style="font-size:12px;font-weight:600;color:var(--text)">NetConfEval samples</span>
+            <button onclick="closeSampler()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);line-height:1">×</button>
+          </div>
+          <div style="padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;gap:6px">
+            <select id="samplerFilter" onchange="loadSamples()" style="flex:1;font-size:11px">
+              <option value="all">All policies</option>
+              <option value="reachability">Reachability</option>
+              <option value="waypoint">Waypoint</option>
+              <option value="load-balancing">Load-Balancing</option>
+            </select>
+            <button onclick="loadSamples()" style="padding:4px 8px;font-size:11px;font-family:var(--mono);background:var(--bg3);border:1px solid var(--border);border-radius:5px;cursor:pointer;color:var(--text2)">↻</button>
+          </div>
+          <div id="samplerList" style="flex:1;overflow-y:auto;padding:7px"></div>
+          <div style="padding:6px 12px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);flex-shrink:0" id="samplerStatus">Loading...</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div><div class="field-label">LLM Model</div><select id="modelSelect"><option value="llama-3.3-70b">Llama 3.3 70B</option></select></div>
+        <div><div class="field-label">Policy type</div>
+          <select id="policySelect">
+            <option value="reachability">Reachability</option>
+            <option value="waypoint">Waypoint</option>
+            <option value="load-balancing">Load-Balancing</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Batch size</span>
+          <span id="batchWarn" class="batch-warn">⚠ above critical threshold (20)</span>
+        </div>
+        <div class="batch-row">
+          <input type="range" min="1" max="100" value="1" step="1" id="batchSlider" oninput="onBatch(this.value)">
+          <span class="batch-val" id="batchVal">1</span>
+        </div>
+        <div style="height:3px;background:var(--bg4);border-radius:2px;margin-top:5px;overflow:hidden">
+          <div id="batchFill" style="height:100%;width:1%;background:var(--success);border-radius:2px;transition:all .3s"></div>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <div class="field-label">Self-healing agent</div>
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:11px;color:var(--text2)">
+          <input type="checkbox" id="healingCheck" checked style="accent-color:var(--accent)">
+          Enable autonomous correction (max 3 attempts)
+        </label>
+      </div>
+      <button class="run-btn" id="runBtn" onclick="runPipeline()">▶ Run Pipeline</button>
+    </div>
+    <div class="sidebar-section grow">
+      <div class="slabel">Run history</div>
+      <div id="histList"><div class="empty-state">No runs yet</div></div>
+    </div>
+  </div>
+
+  <div class="main-panel">
+    <div class="pipeline-bar">
+      <div class="stg" id="stg1"><div class="stg-num">1</div><span>Syntactic</span></div>
+      <span class="pipe-arr">›</span>
+      <div class="stg" id="stg2"><div class="stg-num">2</div><span>Conformance</span></div>
+      <span class="pipe-arr">›</span>
+      <div class="stg" id="stg3"><div class="stg-num">3</div><span>Semantic</span></div>
+      <span class="pipe-arr">›</span>
+      <div class="stg" id="stg4"><div class="stg-num">4</div><span>Mininet</span></div>
+      <div style="flex:1"></div>
+      <span class="status-badge idle" id="globalBadge">IDLE</span>
+    </div>
+    <div class="info-bar" id="infoBar">Configure an intent and click <span>Run Pipeline</span> to start.</div>
+    <div class="content">
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">① LLM Output — Syntactic validation</span><span class="status-badge idle" id="b1">—</span></div>
+        <div class="panel-body" id="p1"><div class="empty-state">Awaiting generation...</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">② Conformance + DETOX</span><span class="status-badge idle" id="b2">—</span></div>
+        <div class="panel-body" id="p2">
+          <div class="check-item pending"><div class="ci-icon">○</div><div><div class="ci-title">YANG Schema</div><div class="ci-desc">Type and hierarchy validation</div></div></div>
+          <div class="check-item pending"><div class="ci-icon">○</div><div><div class="ci-title">IPv4 Addressing</div><div class="ci-desc">Prefix conflicts and subnetting</div></div></div>
+          <div class="check-item pending"><div class="ci-icon">○</div><div><div class="ci-title">Host Identifiers</div><div class="ci-desc">Terminological normalization</div></div></div>
+          <div class="check-item pending"><div class="ci-icon">○</div><div><div class="ci-title">DETOX — Logical conflicts</div><div class="ci-desc">Shadowing, redundancy, correlation</div></div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">③ Semantic analysis + RAG context</span><span class="status-badge idle" id="b3">—</span></div>
+        <div class="panel-body" id="p3"><div class="empty-state">Ground truth comparison pending...</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">④ Experimental validation — Mininet</span><span class="status-badge idle" id="b4">—</span></div>
+        <div class="panel-body" id="p4"><div class="empty-state">Network emulation pending...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- =================== VISUAL BUILDER TAB =================== -->
+<div class="tab-content" id="tab-visual">
+<div class="vb-root">
+  <div class="vb-topbar">
+    <span class="vb-title">Visual Builder</span>
+    <div class="vb-sep"></div>
+    <span class="vb-hint">drag blocks to rearrange · configure parameters · run</span>
+    <button class="vb-reset" onclick="vbReset()">reset layout</button>
+    <button class="vb-run" id="vbRunBtn" onclick="vbRun()">▶ Run Pipeline</button>
+  </div>
+  <div class="vb-canvas" id="vbCanvas"
+    onmousemove="vbMouseMove(event)"
+    onmouseup="vbMouseUp(event)">
+    <svg id="vbSvg"></svg>
+  </div>
+  <div class="vb-status">
+    <div class="vb-sdot" id="vbDot"></div>
+    <span id="vbMsg">Drag blocks to rearrange · configure parameters in each block · click Run.</span>
+  </div>
+</div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let runs = [], running = false, intentValid = true, validateTimer = null;
+let lastRagCtx = null, lastS1Config = null;
+
+// ---- TABS ----
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'visual' && !vbInitialized) { vbInit(); vbInitialized = true; }
+}
+
+// ---- CONNECTION ----
+async function checkConn() {
+  try {
+    const r = await fetch(API + '/health', { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      dot('ok'); document.getElementById('connLabel').textContent = 'localhost:8000 connected';
+      await loadModels();
+    } else throw new Error();
+  } catch { dot('err'); document.getElementById('connLabel').textContent = 'backend offline'; }
+}
+function dot(s) { document.getElementById('connDot').className = 'conn-dot ' + s; }
+
+async function loadModels() {
+  try {
+    const r = await fetch(API + '/api/models');
+    const data = await r.json();
+    const sel = document.getElementById('modelSelect');
+    const vbSel = document.getElementById('vb_model');
+    [sel, vbSel].forEach(s => {
+      if (!s) return;
+      s.innerHTML = '';
+      for (const [prov, list] of Object.entries(data)) {
+        const grp = document.createElement('optgroup');
+        grp.label = prov.charAt(0).toUpperCase() + prov.slice(1);
+        list.forEach(m => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.label; grp.appendChild(o); });
+        s.appendChild(grp);
+      }
+    });
+  } catch {}
+}
+
+// ---- BATCH SLIDER (Pipeline tab) ----
+function onBatch(v) {
+  const n = parseInt(v);
+  document.getElementById('batchVal').textContent = n;
+  const fill = document.getElementById('batchFill');
+  fill.style.width = n + '%';
+  const warn = document.getElementById('batchWarn');
+  if (n >= 20) { fill.style.background = 'var(--danger)'; warn.style.display = 'inline'; }
+  else if (n >= 10) { fill.style.background = 'var(--warn)'; warn.style.display = 'none'; }
+  else { fill.style.background = 'var(--success)'; warn.style.display = 'none'; }
+}
+
+// ---- INTENT VALIDATION ----
+function onIntentChange() { clearTimeout(validateTimer); validateTimer = setTimeout(validateIntent, 600); }
+async function validateIntent() {
+  const text = document.getElementById('intentInput').value.trim();
+  const errEl = document.getElementById('intentError');
+  const okEl  = document.getElementById('intentOk');
+  const ta    = document.getElementById('intentInput');
+  if (!text) { ta.className=''; errEl.style.display='none'; okEl.style.display='none'; intentValid=false; return; }
+  try {
+    const r = await fetch(API + '/api/validate/intent', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({intent:text}) });
+    const d = await r.json();
+    intentValid = d.valid;
+    ta.className = d.valid ? 'valid' : 'invalid';
+    errEl.style.display = d.valid ? 'none' : 'block';
+    okEl.style.display  = d.valid ? 'block' : 'none';
+    if (!d.valid) errEl.textContent = d.reason;
+  } catch { intentValid = true; }
+}
+
+// ---- SAMPLER ----
+let samplerOffset = 0, samplerTotal = 0, samplerLoading = false;
+function openSampler() { document.getElementById('samplerOverlay').style.display = 'block'; loadSamples(); }
+function closeSampler(e) { if (!e || e.target === document.getElementById('samplerOverlay')) document.getElementById('samplerOverlay').style.display = 'none'; }
+async function loadSamples(reset) {
+  if (samplerLoading) return;
+  samplerLoading = true;
+  if (reset !== false) { samplerOffset = 0; document.getElementById('samplerList').innerHTML = ''; }
+  const policy = document.getElementById('samplerFilter').value;
+  try {
+    const r = await fetch(`${API}/api/dataset/samples?policy_type=${policy}&limit=20&offset=${samplerOffset}`);
+    const data = await r.json();
+    samplerTotal = data.total || 0;
+    renderSamples(data.samples || [], reset !== false);
+    samplerOffset += (data.samples || []).length;
+    document.getElementById('samplerStatus').textContent = `Showing ${samplerOffset} of ${samplerTotal} samples`;
+  } catch { document.getElementById('samplerStatus').textContent = 'Error loading samples'; }
+  samplerLoading = false;
+}
+function renderSamples(samples, reset) {
+  const list = document.getElementById('samplerList');
+  if (reset) list.innerHTML = '';
+  const pc = { reachability:'var(--accent)', waypoint:'var(--warn)', 'load-balancing':'var(--success)' };
+  samples.forEach(s => {
+    const div = document.createElement('div');
+    div.style.cssText = 'padding:7px 9px;border-radius:6px;cursor:pointer;border:1px solid transparent;margin-bottom:3px;transition:all .12s';
+    div.onmouseover = () => { div.style.background='var(--bg3)'; div.style.borderColor='var(--border)'; };
+    div.onmouseout  = () => { div.style.background=''; div.style.borderColor='transparent'; };
+    div.onclick = () => pickSample(s);
+    div.innerHTML = `<div style="font-size:11px;color:var(--text);margin-bottom:3px;line-height:1.4">${s.intent}</div>
+      <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:${pc[s.policy_type]||'var(--text3)'}">${s.policy_type}</span>`;
+    list.appendChild(div);
+  });
+  if (samplerOffset < samplerTotal) {
+    const more = document.createElement('button');
+    more.textContent = 'Load more';
+    more.style.cssText = 'width:100%;padding:6px;font-size:11px;font-family:var(--mono);background:var(--bg3);border:1px solid var(--border);border-radius:5px;cursor:pointer;color:var(--text2);margin-top:4px';
+    more.onclick = () => { more.remove(); loadSamples(false); };
+    list.appendChild(more);
+  }
+}
+function pickSample(s) {
+  document.getElementById('intentInput').value = s.intent;
+  const pm = { reachability:'reachability', waypoint:'waypoint', 'load-balancing':'load-balancing' };
+  const sel = document.getElementById('policySelect');
+  if (pm[s.policy_type]) sel.value = pm[s.policy_type];
+  closeSampler(); onIntentChange();
+}
+
+// ---- PIPELINE HELPERS ----
+function setStage(id, s) { document.getElementById(id).className = 'stg ' + s; }
+function setBadge(id, s, t) { const el = document.getElementById(id); el.className = 'status-badge ' + s; el.textContent = t; }
+function setInfo(html) { document.getElementById('infoBar').innerHTML = html; }
+function hl(obj) {
+  return JSON.stringify(obj,null,2)
+    .replace(/("[\w-]+")\s*:/g,'<span style="color:var(--accent)">$1</span>:')
+    .replace(/:\s*(".*?")/g,': <span style="color:var(--success)">$1</span>')
+    .replace(/:\s*(true|false|null)/g,': <span style="color:var(--warn)">$1</span>')
+    .replace(/:\s*(\d+\.?\d*)/g,': <span style="color:#7c3aed">$1</span>');
+}
+function topoSVG(src, dst, pass) {
+  const c = pass ? 'var(--success)' : 'var(--danger)';
+  const lc = pass ? 'var(--success)' : 'var(--border2)';
+  return `<div class="topo-wrap"><svg width="100%" viewBox="0 0 320 80">
+    <line x1="66" y1="40" x2="130" y2="40" stroke="${lc}" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <line x1="176" y1="40" x2="234" y2="40" stroke="${lc}" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <rect x="6" y="22" width="60" height="34" rx="5" fill="var(--bg2)" stroke="var(--accent)" stroke-width="1"/>
+    <text x="36" y="37" text-anchor="middle" font-size="9" fill="var(--accent)" font-family="JetBrains Mono">${src}</text>
+    <text x="36" y="48" text-anchor="middle" font-size="7" fill="var(--text3)" font-family="JetBrains Mono">host</text>
+    <circle cx="153" cy="40" r="16" fill="var(--bg2)" stroke="var(--warn)" stroke-width="1"/>
+    <text x="153" y="37" text-anchor="middle" font-size="8" fill="var(--warn)" font-family="JetBrains Mono">R1</text>
+    <text x="153" y="47" text-anchor="middle" font-size="7" fill="var(--text3)" font-family="JetBrains Mono">router</text>
+    <rect x="234" y="18" width="76" height="42" rx="5" fill="var(--bg2)" stroke="${c}" stroke-width="1"/>
+    <text x="272" y="37" text-anchor="middle" font-size="8" fill="${c}" font-family="JetBrains Mono">${dst}</text>
+    <text x="272" y="49" text-anchor="middle" font-size="7" fill="var(--text3)" font-family="JetBrains Mono">subnet</text>
+    <text x="160" y="72" text-anchor="middle" font-size="9" fill="${c}" font-family="JetBrains Mono">${pass?'reachable ✓':'unreachable ✗'}</text>
+  </svg></div>`;
+}
+function diffView(gen, exp) {
+  if (!exp) return '';
+  const g = JSON.stringify(gen,null,2), e = JSON.stringify(exp,null,2);
+  if (g===e) return '';
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return `<div class="diff-wrap">
+    <div class="diff-header">
+      <div class="diff-col-label" style="color:var(--danger)">✗ Generated (LLM)</div>
+      <div class="diff-col-label" style="color:var(--success)">✓ Expected (NetConfEval)</div>
+    </div>
+    <div class="diff-cols">
+      <div class="diff-col generated">${esc(g)}</div>
+      <div class="diff-col expected">${esc(e)}</div>
+    </div>
+  </div>`;
+}
+
+// ---- PIPELINE RUN ----
+async function runPipeline() {
+  if (running) return;
+  await validateIntent();
+  if (!intentValid) { document.getElementById('intentInput').focus(); return; }
+  running = true;
+  const intent = document.getElementById('intentInput').value.trim();
+  const model  = document.getElementById('modelSelect').value;
+  const policy = document.getElementById('policySelect').value;
+  const batch  = parseInt(document.getElementById('batchSlider').value);
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('runBtn').textContent = '⟳ Running...';
+  ['stg1','stg2','stg3','stg4'].forEach(s=>setStage(s,''));
+  ['b1','b2','b3','b4'].forEach(b=>setBadge(b,'idle','—'));
+  setBadge('globalBadge','running','RUNNING');
+  setInfo(`Sending to <span>${model}</span> — batch size: <span>${batch}</span>`);
+  setStage('stg1','running');
+  document.getElementById('p1').innerHTML='<div class="empty-state">Generating configuration...</div>';
+  document.getElementById('p3').innerHTML='<div class="empty-state">Awaiting RAG context...</div>';
+  document.getElementById('p4').innerHTML='<div class="empty-state">Awaiting Mininet...</div>';
+  document.getElementById('p2').innerHTML=['YANG Schema','IPv4 Addressing','Host Identifiers','DETOX — Logical conflicts']
+    .map(c=>`<div class="check-item pending"><div class="ci-icon">○</div><div><div class="ci-title">${c}</div></div></div>`).join('');
+  try {
+    const resp = await fetch(API+'/api/pipeline/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent,model,policy_type:policy,batch_size:batch})});
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    renderResult(data,intent,model,batch);
+  } catch(e) {
+    setInfo(`<span style="color:var(--danger)">Error: ${e.message}</span>`);
+    setBadge('globalBadge','fail','ERROR');
+  }
+  running=false;
+  document.getElementById('runBtn').disabled=false;
+  document.getElementById('runBtn').textContent='▶ Run Pipeline';
+}
+
+function renderResult(data,intent,model,batch) {
+  const stages=data.stages||{};
+  lastRagCtx=data.rag_context||{};
+  const gt=lastRagCtx.examples&&lastRagCtx.examples[0]?lastRagCtx.examples[0].config:null;
+  const s1=stages['1_syntactic'], s2=stages['2_conformance'], s4=stages['4_mininet'];
+  lastS1Config=(s1&&s1.config)?s1.config:null;
+  if(s1){
+    const pass=s1.status==='pass';
+    setStage('stg1',pass?'pass':'fail'); setBadge('b1',pass?'pass':'fail',pass?'PASS':'FAIL');
+    document.getElementById('p1').innerHTML=pass&&s1.config
+      ?`<div style="font-size:10px;color:var(--text3);margin-bottom:5px">Model: ${s1.model}</div><div class="code-block">${hl(s1.config)}</div>`
+      :`<div class="check-item fail"><div class="ci-icon">✗</div><div><div class="ci-title">Generation failed</div><div class="ci-desc">${s1.error||''}</div></div></div>${gt?`<div style="margin-top:8px;font-size:10px;color:var(--text3);margin-bottom:4px">Expected by NetConfEval:</div><div class="code-block" style="border-color:var(--sbord)">${hl(gt)}</div>`:''}`;
+  }
+  if(s2){
+    const pass=s2.status==='pass';
+    setStage('stg2',pass?'pass':'fail'); setStage('stg3',pass?'pass':'fail');
+    setBadge('b2',pass?'pass':'fail',pass?'PASS':'FAIL'); setBadge('b3',pass?'pass':'fail',pass?'PASS':'FAIL');
+    if(s2.detail&&s2.detail.checks){
+      document.getElementById('p2').innerHTML=s2.detail.checks.map(c=>`<div class="check-item ${c.passed?'pass':'fail'}"><div class="ci-icon">${c.passed?'✓':'✗'}</div><div><div class="ci-title">${c.name}</div><div class="ci-desc" style="color:${c.passed?'var(--text3)':'var(--danger)'}">${c.detail}</div></div></div>`).join('');
+      const sim=s2.detail.similarity_score||0, conflicts=s2.detail.conflicts||[];
+      const src=lastS1Config?(lastS1Config.source||'host'):'host';
+      const dst=lastS1Config?(lastS1Config.destination||'0.0.0.0/0'):'0.0.0.0/0';
+      document.getElementById('p3').innerHTML=`<div class="metrics-row">
+        <div class="metric-card"><div class="metric-val ${sim>.8?'green':sim>.5?'blue':'red'}">${(sim*100).toFixed(1)}%</div><div class="metric-lbl">Similarity</div></div>
+        <div class="metric-card"><div class="metric-val ${conflicts.length===0?'green':'warn'}">${conflicts.length}</div><div class="metric-lbl">Conflicts</div></div>
+        <div class="metric-card"><div class="metric-val blue">${lastRagCtx.ground_truth_count||0}</div><div class="metric-lbl">RAG samples</div></div>
+      </div>
+      ${conflicts.length>0?conflicts.map(c=>`<div class="check-item fail"><div class="ci-icon">✗</div><div><div class="ci-desc">${c}</div></div></div>`).join(''):'<div class="check-item pass"><div class="ci-icon">✓</div><div><div class="ci-title">No logical conflicts detected</div></div></div>'}
+      ${!pass&&lastS1Config&&gt?diffView(lastS1Config,gt):''}
+      ${topoSVG(src,dst,pass)}`;
+    } else if(s2.error) {
+      document.getElementById('p2').innerHTML=`<div class="check-item fail"><div class="ci-icon">✗</div><div><div class="ci-desc">${s2.error}</div></div></div>${gt?diffView(lastS1Config,gt):''}`;
+    }
+  }
+  if(s4){
+    const pass=s4.status==='pass';
+    setStage('stg4',pass?'pass':'fail'); setBadge('b4',pass?'pass':'fail',pass?'PASS':'FAIL');
+    const detail=s4.detail||{}, sim=s2?.detail?.similarity_score||0;
+    document.getElementById('p4').innerHTML=`${detail.topology?.simulated?'<div style="font-size:10px;color:var(--warn);margin-bottom:5px">simulation mode — deploy to AWS EC2 for real Mininet</div>':''}
+      <div class="ping-output ${pass?'':'fail'}">${detail.ping_output||s4.error||'—'}</div>
+      ${detail.packet_loss!==undefined?`<div style="font-size:10px;color:var(--text3);margin-top:5px">packet loss: <strong>${detail.packet_loss}%</strong></div>`:''}
+      ${!pass&&gt&&lastS1Config?`<div style="margin-top:10px;font-size:10px;color:var(--text3);margin-bottom:4px">NetConfEval ground truth:</div><div class="code-block" style="border-color:var(--sbord);font-size:10px">${hl(gt)}</div>`:''}`;
+  }
+  const sim=s2?.detail?.similarity_score||0;
+  setBadge('globalBadge',data.all_pass?'pass':'fail',data.all_pass?'PASS':'FAIL');
+  setInfo(data.all_pass
+    ?`Pipeline complete — <span style="color:var(--success)">configuration validated</span> | model: ${model} | batch: ${batch} | similarity: <span>${(sim*100).toFixed(1)}%</span>`
+    :`Pipeline complete — <span style="color:var(--danger)">failure detected</span> | model: ${model} | batch: ${batch} | similarity: <span style="color:var(--danger)">${(sim*100).toFixed(1)}%</span>`);
+  runs.unshift({intent:intent.slice(0,42),model,batch,pass:data.all_pass});
+  renderHistory();
+}
+
+function renderHistory() {
+  if(!runs.length){document.getElementById('histList').innerHTML='<div class="empty-state">No runs yet</div>';return;}
+  document.getElementById('histList').innerHTML=runs.slice(0,8).map((r,i)=>
+    `<div class="hist-item" onclick="loadRun(${i})">
+      <div class="hist-dot" style="background:${r.pass?'var(--success)':'var(--danger)'}"></div>
+      <div class="hist-text">${r.intent}…</div>
+      <span class="hist-badge" style="background:${r.pass?'var(--sbg)':'var(--dbg)'};color:${r.pass?'var(--success)':'var(--danger)'}">${r.pass?'PASS':'FAIL'}</span>
+    </div>`).join('');
+}
+function loadRun(i){const r=runs[i];if(r)document.getElementById('intentInput').value=r.intent;}
+
+// ===================== VISUAL BUILDER =====================
+const VB_STAGES = [
+  {id:'vbs_intent',  type:'intent',   title:'Intent',       stage:'input',   color:'#2563eb', hasIn:false, hasOut:true },
+  {id:'vbs_llm',     type:'llm',      title:'LLM Model',    stage:'step 1',  color:'#7c3aed', hasIn:true,  hasOut:true },
+  {id:'vbs_rag',     type:'rag',      title:'RAG Engine',   stage:'step 1',  color:'#0891b2', hasIn:true,  hasOut:true },
+  {id:'vbs_verifier',type:'verifier', title:'Verifier',     stage:'step 2–3',color:'#059669', hasIn:true,  hasOut:true },
+  {id:'vbs_healing', type:'healing',  title:'Self-Healing', stage:'step *',  color:'#dc2626', hasIn:true,  hasOut:true },
+  {id:'vbs_mininet', type:'mininet',  title:'Mininet',      stage:'step 4',  color:'#65a30d', hasIn:true,  hasOut:true },
+  {id:'vbs_output',  type:'output',   title:'Output',       stage:'result',  color:'#475569', hasIn:true,  hasOut:false},
+];
+const VB_EDGES = [
+  {from:'vbs_intent',to:'vbs_llm'},{from:'vbs_intent',to:'vbs_rag'},
+  {from:'vbs_llm',to:'vbs_verifier'},{from:'vbs_rag',to:'vbs_verifier'},
+  {from:'vbs_verifier',to:'vbs_healing'},{from:'vbs_verifier',to:'vbs_mininet'},
+  {from:'vbs_healing',to:'vbs_mininet'},{from:'vbs_mininet',to:'vbs_output'},
+];
+let vbPos={}, vbDragging=null, vbDragOX=0, vbDragOY=0, vbEdgeStates={}, vbInitialized=false;
+
+function vbDefaultPos(){
+  return {
+    vbs_intent:  {x:14, y:155},vbs_llm:{x:200,y:55},vbs_rag:{x:200,y:235},
+    vbs_verifier:{x:390,y:155},vbs_healing:{x:570,y:55},vbs_mininet:{x:570,y:235},vbs_output:{x:760,y:155}
+  };
+}
+
+function vbInit() {
+  vbPos = vbDefaultPos();
+  vbRenderAll();
+  vbLoadRagStats();
+}
+
+function vbReset() { vbPos=vbDefaultPos(); vbRenderAll(); vbSetStatus('Layout reset.',''); }
+
+function vbSetStatus(msg,state) {
+  document.getElementById('vbMsg').textContent=msg;
+  document.getElementById('vbDot').className='vb-sdot'+(state?' '+state:'');
+}
+
+function vbRenderAll() { vbRenderBlocks(); vbRenderEdges(); }
+
+function vbRenderBlocks() {
+  const canvas=document.getElementById('vbCanvas');
+  canvas.querySelectorAll('.vb-block').forEach(e=>e.remove());
+  VB_STAGES.forEach(stage=>{
+    const pos=vbPos[stage.id];
+    const el=document.createElement('div');
+    el.className='vb-block'; el.id=stage.id;
+    el.style.cssText=`left:${pos.x}px;top:${pos.y}px`;
+    el.innerHTML=`
+      <div class="vb-head" onmousedown="vbStartDrag(event,'${stage.id}')">
+        <div class="vb-dot" style="background:${stage.color}"></div>
+        <span class="vb-title-t">${stage.title}</span>
+        <span class="vb-stage">${stage.stage}</span>
+      </div>
+      <div class="vb-body">${vbBody(stage)}</div>
+      <div class="vb-result" id="vbr_${stage.id}" style="display:none"></div>
+      ${stage.hasOut?`<div class="vb-port-out" id="vbpo_${stage.id}"></div>`:''}
+      ${stage.hasIn ?`<div class="vb-port-in"  id="vbpi_${stage.id}"></div>`:''}`;
+    canvas.appendChild(el);
+  });
+}
+
+function vbBody(stage) {
+  if(stage.type==='intent') return `
+    <div class="vb-lbl">Network intent</div>
+    <textarea id="vb_intent" style="height:50px">Traffic originating from lyon can reach the subnet 100.0.8.0/24.</textarea>
+    <div class="vb-lbl">Policy</div>
+    <select id="vb_policy"><option value="reachability">Reachability</option><option value="waypoint">Waypoint</option><option value="load-balancing">Load-Balancing</option></select>`;
+  if(stage.type==='llm') return `
+    <div class="vb-lbl">Model</div>
+    <select id="vb_model"><option value="llama-3.3-70b">Llama 3.3 70B</option></select>
+    <div class="vb-lbl">Batch <span id="vb_bv" style="color:var(--text);font-weight:500">1</span></div>
+    <input type="range" min="1" max="50" value="1" step="1" id="vb_batch" oninput="document.getElementById('vb_bv').textContent=this.value;vbCheckBatch(this.value)">
+    <div id="vb_bwarn" style="font-size:9px;color:var(--warn);display:none">⚠ above threshold (20)</div>`;
+  if(stage.type==='rag') return `<div style="font-size:10px;color:var(--text3);line-height:1.6">NetConfEval<br>ground truth<br><span id="vb_ragcount" style="color:var(--text2)">— samples</span></div>`;
+  if(stage.type==='verifier') return `<div style="font-size:10px;color:var(--text3);line-height:1.6">YANG schema<br>IPv4 · DETOX<br>conflict detection</div>`;
+  if(stage.type==='healing') return `
+    <div class="vb-lbl">Max attempts</div>
+    <select id="vb_healing"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option></select>
+    <div style="font-size:9px;color:var(--text3)">Activates on failure</div>`;
+  if(stage.type==='mininet') return `<div style="font-size:10px;color:var(--text3);line-height:1.6">ICMP ping<br>L2/L3 saneamento<br>dataplane test</div>`;
+  if(stage.type==='output') return `<div id="vb_output" style="font-size:10px;color:var(--text3);line-height:1.6">Results appear<br>here after run.</div>`;
+  return '';
+}
+
+function vbCheckBatch(v){const w=document.getElementById('vb_bwarn');if(w)w.style.display=parseInt(v)>=20?'block':'none';}
+
+function vbGetPortCenter(portId){
+  const el=document.getElementById(portId);
+  if(!el)return null;
+  const canvas=document.getElementById('vbCanvas');
+  const cr=canvas.getBoundingClientRect(), pr=el.getBoundingClientRect();
+  return{x:pr.left-cr.left+5,y:pr.top-cr.top+5};
+}
+
+function vbBezier(x1,y1,x2,y2){const cx=Math.abs(x2-x1)*.5;return `M${x1},${y1} C${x1+cx},${y1} ${x2-cx},${y2} ${x2},${y2}`;}
+
+function vbRenderEdges(){
+  const svg=document.getElementById('vbSvg');
+  svg.innerHTML='';
+  const colors={idle:'var(--border2)',run:'#2563eb',pass:'#16a34a',fail:'#dc2626'};
+  const widths={idle:'1',run:'2',pass:'1.5',fail:'1.5'};
+  VB_EDGES.forEach(edge=>{
+    const s=vbGetPortCenter('vbpo_'+edge.from), t=vbGetPortCenter('vbpi_'+edge.to);
+    if(!s||!t)return;
+    const state=vbEdgeStates[edge.from+'_'+edge.to]||'idle';
+    const mkId='vbmk_'+state;
+    if(!svg.querySelector('#'+mkId)){
+      const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+      const mk=document.createElementNS('http://www.w3.org/2000/svg','marker');
+      mk.setAttribute('id',mkId);mk.setAttribute('viewBox','0 0 8 8');mk.setAttribute('refX','6');mk.setAttribute('refY','4');mk.setAttribute('markerWidth','5');mk.setAttribute('markerHeight','5');mk.setAttribute('orient','auto-start-reverse');
+      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('d','M1 1L7 4L1 7');p.setAttribute('fill','none');p.setAttribute('stroke',colors[state]);p.setAttribute('stroke-width','1.5');p.setAttribute('stroke-linecap','round');
+      mk.appendChild(p);defs.appendChild(mk);svg.appendChild(defs);
+    }
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',vbBezier(s.x,s.y,t.x,t.y));
+    path.setAttribute('fill','none');path.setAttribute('stroke',colors[state]);path.setAttribute('stroke-width',widths[state]);
+    if(state==='run')path.setAttribute('stroke-dasharray','6 3');
+    path.setAttribute('marker-end',`url(#${mkId})`);
+    svg.appendChild(path);
+    if(state==='run'){
+      const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('r','4');circle.setAttribute('fill','#2563eb');
+      const anim=document.createElementNS('http://www.w3.org/2000/svg','animateMotion');
+      anim.setAttribute('dur','0.8s');anim.setAttribute('repeatCount','indefinite');anim.setAttribute('path',vbBezier(s.x,s.y,t.x,t.y));
+      circle.appendChild(anim);svg.appendChild(circle);
+    }
+  });
+}
+
+function vbStartDrag(e,id){
+  vbDragging=id;
+  const el=document.getElementById(id);
+  const canvas=document.getElementById('vbCanvas');
+  const cr=canvas.getBoundingClientRect(), er=el.getBoundingClientRect();
+  vbDragOX=e.clientX-er.left; vbDragOY=e.clientY-er.top;
+  el.style.zIndex=100; e.preventDefault();
+}
+
+function vbMouseMove(e){
+  if(!vbDragging)return;
+  const canvas=document.getElementById('vbCanvas');
+  const cr=canvas.getBoundingClientRect();
+  const nx=Math.max(0,e.clientX-cr.left-vbDragOX);
+  const ny=Math.max(0,e.clientY-cr.top-vbDragOY);
+  vbPos[vbDragging]={x:nx,y:ny};
+  const el=document.getElementById(vbDragging);
+  el.style.left=nx+'px'; el.style.top=ny+'px';
+  vbRenderEdges();
+}
+
+function vbMouseUp(){if(vbDragging){document.getElementById(vbDragging).style.zIndex='';vbDragging=null;}}
+
+async function vbRun(){
+  const btn=document.getElementById('vbRunBtn');
+  const intent=document.getElementById('vb_intent')?.value?.trim();
+  const model=document.getElementById('vb_model')?.value||'llama-3.3-70b';
+  const batch=parseInt(document.getElementById('vb_batch')?.value||'1');
+  const policy=document.getElementById('vb_policy')?.value||'reachability';
+  if(!intent){vbSetStatus('Intent is empty.','err');return;}
+  btn.disabled=true; vbSetStatus('Running pipeline...','run');
+  VB_STAGES.forEach(s=>{
+    const el=document.getElementById(s.id);if(el)el.className='vb-block';
+    const res=document.getElementById('vbr_'+s.id);if(res){res.style.display='none';res.className='vb-result';}
+    const pin=document.getElementById('vbpi_'+s.id),pout=document.getElementById('vbpo_'+s.id);
+    if(pin)pin.className='vb-port-in';if(pout)pout.className='vb-port-out';
+  });
+  vbEdgeStates={};
+  const runOrder=[['vbs_intent'],['vbs_llm','vbs_rag'],['vbs_verifier'],['vbs_healing','vbs_mininet'],['vbs_output']];
+  for(const group of runOrder){
+    group.forEach(id=>{
+      const el=document.getElementById(id);if(el)el.className='vb-block running';
+      VB_EDGES.filter(e=>e.to===id).forEach(e=>{vbEdgeStates[e.from+'_'+e.to]='run';});
+    });
+    vbRenderEdges(); await vbSleep(600);
+  }
+  try{
+    const resp=await fetch(API+'/api/pipeline/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent,model,policy_type:policy,batch_size:batch})});
+    const data=await resp.json();
+    vbApplyResults(data);
+  }catch(e){
+    vbSetStatus('Backend error: '+e.message,'err');
+    VB_STAGES.forEach(s=>{const el=document.getElementById(s.id);if(el)el.className='vb-block';});
+    vbEdgeStates={}; vbRenderEdges();
+  }
+  btn.disabled=false;
+}
+
+function vbApplyResults(data){
+  const stages=data.stages||{};
+  const s1=stages['1_syntactic'], s2=stages['2_conformance'], s4=stages['4_mininet'];
+  const sim=s2?.detail?.similarity_score||0;
+  const ragCount=data.rag_context?.ground_truth_count||0;
+  const rc=document.getElementById('vb_ragcount');if(rc)rc.textContent=ragCount+' samples';
+  vbApplyBlock('vbs_intent',true,'Intent sent');
+  vbApplyBlock('vbs_llm',s1?.status==='pass',s1?.status==='pass'?s1.model:(s1?.error||'failed'));
+  vbApplyBlock('vbs_rag',true,ragCount+' samples retrieved');
+  vbApplyBlock('vbs_verifier',s2?.status==='pass',s2?.status==='pass'?`sim: ${(sim*100).toFixed(1)}% · no conflicts`:(s2?.detail?.checks?.filter(c=>!c.passed).map(c=>c.name).join(', ')||s2?.error||'failed'));
+  vbApplyBlock('vbs_healing',data.all_pass,data.all_pass?'not needed':'activated');
+  vbApplyBlock('vbs_mininet',s4?.status==='pass',s4?.status==='pass'?'0% packet loss':(s4?.detail?.ping_output?.split('\n')[0]||'failed'));
+  const outEl=document.getElementById('vb_output');
+  if(outEl)outEl.innerHTML=data.all_pass?`<span style="color:var(--success)">✓ PASS</span><br>sim: ${(sim*100).toFixed(1)}%`:`<span style="color:var(--danger)">✗ FAIL</span><br>sim: ${(sim*100).toFixed(1)}%`;
+  vbApplyBlock('vbs_output',data.all_pass,data.all_pass?'validated':'failed');
+  vbEdgeStates={};
+  VB_EDGES.forEach(e=>{
+    const toEl=document.getElementById(e.to);
+    vbEdgeStates[e.from+'_'+e.to]=toEl?.classList.contains('pass')?'pass':'fail';
+  });
+  vbRenderEdges();
+  vbSetStatus(data.all_pass?`✓ Pipeline complete — all stages passed · similarity: ${(sim*100).toFixed(1)}%`:`✗ Pipeline complete — failure detected · similarity: ${(sim*100).toFixed(1)}%`,data.all_pass?'ok':'err');
+}
+
+function vbApplyBlock(id,pass,msg){
+  const el=document.getElementById(id);if(!el)return;
+  el.className='vb-block '+(pass?'pass':'fail');
+  const res=document.getElementById('vbr_'+id);
+  if(res){res.style.display='block';res.className='vb-result '+(pass?'ok':'err');res.textContent=(pass?'✓ ':'✗ ')+msg;}
+  const pin=document.getElementById('vbpi_'+id),pout=document.getElementById('vbpo_'+id);
+  if(pin)pin.className='vb-port-in '+(pass?'ok':'err');
+  if(pout)pout.className='vb-port-out '+(pass?'ok':'err');
+}
+
+async function vbLoadRagStats(){
+  try{const r=await fetch(API+'/api/dataset/samples?limit=1');const d=await r.json();const rc=document.getElementById('vb_ragcount');if(rc&&d.total)rc.textContent=d.total+' samples';}catch{}
+}
+
+function vbSleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// ---- INIT ----
+checkConn();
+setInterval(checkConn, 30000);
+</script>
+</body>
+</html>

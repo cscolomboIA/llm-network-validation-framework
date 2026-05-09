@@ -1,0 +1,52 @@
+version: "3.9"
+
+# ============================================================
+# NetValidAI — Docker Compose
+# ============================================================
+# Usage:
+#   cp .env.example .env   # then edit with your API keys
+#   docker-compose up --build
+#
+# Services:
+#   api      → FastAPI pipeline (localhost:8000)
+#   frontend → Static file server (localhost:8080)
+#
+# Note: Mininet requires Linux kernel features not available
+# inside Docker. MININET_MODE is set to "simulated" by default.
+# For real Mininet validation, use the local installation (Opt B in README).
+# ============================================================
+
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      MININET_MODE: simulated   # Override: real Mininet needs host network + Linux
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    volumes:
+      - ./rag-engine/data:/app/rag-engine/data:ro
+      - ./results:/app/results
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
