@@ -532,9 +532,17 @@ function renderResult(data,intent,model,batch) {
   if(s1){
     const pass=s1.status==='pass';
     setStage('stg1',pass?'pass':'fail'); setBadge('b1',pass?'pass':'fail',pass?'PASS':'FAIL');
+    const batchIntents=s1.batch_intents||[];
+    const batchLink=batch>1&&batchIntents.length>1
+      ?`<div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:10px;color:var(--text3)">${batch} intents enviadas ao LLM</span>
+          <a href="#" onclick="openBatchReport(event)" style="font-size:10px;color:var(--accent);text-decoration:none;border:1px solid var(--border2);border-radius:4px;padding:2px 8px">📋 ver relatório do batch</a>
+        </div>`
+      :'';
     document.getElementById('p1').innerHTML=pass&&s1.config
-      ?`<div style="font-size:10px;color:var(--text3);margin-bottom:5px">Model: ${s1.model}</div><div class="code-block">${hl(s1.config)}</div>`
+      ?`<div style="font-size:10px;color:var(--text3);margin-bottom:5px">Model: ${s1.model}</div><div class="code-block">${hl(s1.config)}</div>${batchLink}`
       :`<div class="check-item fail"><div class="ci-icon">✗</div><div><div class="ci-title">Generation failed</div><div class="ci-desc">${s1.error||''}</div></div></div>${gt?`<div style="margin-top:8px;font-size:10px;color:var(--text3);margin-bottom:4px">Expected by NetConfEval:</div><div class="code-block" style="border-color:var(--sbord)">${hl(gt)}</div>`:''}`;
+    lastBatchData={intents:batchIntents,configs:s1.all_configs||[s1.config],model:s1.model};
   }
   if(s2){
     const pass=s2.status==='pass';
@@ -573,6 +581,49 @@ function renderResult(data,intent,model,batch) {
     :`Pipeline complete — <span style="color:var(--danger)">failure detected</span> | model: ${model} | batch: ${batch} | similarity: <span style="color:var(--danger)">${(sim*100).toFixed(1)}%</span>`);
   runs.unshift({intent:intent.slice(0,42),model,batch,pass:data.all_pass});
   renderHistory();
+}
+
+let lastBatchData={intents:[],configs:[],model:''};
+
+function openBatchReport(e){
+  e.preventDefault();
+  const {intents,configs,model}=lastBatchData;
+  const rows=intents.map((intent,i)=>{
+    const cfg=configs[i]||{};
+    const isFirst=i===0;
+    return `<tr style="background:${isFirst?'rgba(37,99,235,.04)':''}">
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;color:${isFirst?'var(--accent)':'var(--text2)'};vertical-align:top;white-space:nowrap">
+        ${isFirst?'<span style="font-size:9px;background:var(--accent);color:#fff;border-radius:3px;padding:1px 5px;margin-right:4px">sua intent</span>':''}#${i+1}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text);vertical-align:top">${intent}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:10px;font-family:var(--mono);color:var(--text2);vertical-align:top;white-space:pre">${JSON.stringify(cfg,null,2)}</td>
+    </tr>`;
+  }).join('');
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Batch Report — NetValidAI</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#f4f6fa;--bg2:#fff;--border:rgba(60,100,200,.10);--accent:#2563eb;--text:#1e2a3a;--text2:#4a5c78;--text3:#8a9bb8;--mono:'JetBrains Mono',monospace;--display:'Syne',sans-serif}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;padding:24px}
+    h1{font-family:var(--display);font-size:20px;font-weight:800;margin-bottom:4px}
+    .sub{font-size:11px;color:var(--text3);margin-bottom:20px}
+    table{width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+    th{padding:8px 10px;background:rgba(37,99,235,.06);font-size:10px;color:var(--text3);text-align:left;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+    td{max-width:340px;overflow-wrap:break-word}
+  </style></head><body>
+  <h1>Batch Report</h1>
+  <div class="sub">Modelo: ${model} &nbsp;·&nbsp; ${intents.length} intents enviadas simultaneamente ao LLM &nbsp;·&nbsp; resultado exibido: intent #1 (sua intent)</div>
+  <table>
+    <thead><tr><th>#</th><th>Intent enviada</th><th>Configuração gerada</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  </body></html>`;
+
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
 }
 
 function renderHistory() {
