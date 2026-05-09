@@ -94,10 +94,16 @@ async def run_stages_234(
     The config used is exactly what the LLM generated under batch stress.
     """
     agent = SelfHealingAgent(model=model, max_attempts=int(os.getenv("MAX_HEALING_ATTEMPTS", 3)))
+
+    # Extract ground truth from RAG context
+    examples = rag_ctx.get("examples", []) if rag_ctx else []
+    ground_truth = examples[0].get("config") if examples else {}
+
     result = {
         "intent": intent,
         "is_primary": is_primary,
         "all_pass": False,
+        "ground_truth": ground_truth,
         "stages": {
             "1_syntactic": {"status": "pass", "config": config},
         },

@@ -542,7 +542,13 @@ function renderResult(data,intent,model,batch) {
     document.getElementById('p1').innerHTML=pass&&s1.config
       ?`<div style="font-size:10px;color:var(--text3);margin-bottom:5px">Model: ${s1.model}</div><div class="code-block">${hl(s1.config)}</div>${batchLink}`
       :`<div class="check-item fail"><div class="ci-icon">✗</div><div><div class="ci-title">Generation failed</div><div class="ci-desc">${s1.error||''}</div></div></div>${gt?`<div style="margin-top:8px;font-size:10px;color:var(--text3);margin-bottom:4px">Expected by NetConfEval:</div><div class="code-block" style="border-color:var(--sbord)">${hl(gt)}</div>`:''}`;
-    lastBatchData={intents:batchIntents,batchConfigs:s1.all_configs||[s1.config],model:s1.model,batchResults:data.batch_results||[]};
+    lastBatchData={
+      intents:batchIntents,
+      batchConfigs:s1.all_configs||[s1.config],
+      model:s1.model,
+      batchResults:data.batch_results||[],
+      groundTruths:(data.batch_results||[]).map(r=>r.ground_truth||{})
+    };
   }
   if(s2){
     const pass=s2.status==='pass';
@@ -614,7 +620,7 @@ function fmtJson(obj) {
 
 function openBatchReport(e){
   e.preventDefault();
-  const {intents, batchConfigs, model, batchResults} = lastBatchData;
+  const {intents, batchConfigs, model, batchResults, groundTruths} = lastBatchData;
   const hasFull = batchResults && batchResults.length > 0;
 
   const rows = intents.map((intent, i) => {
@@ -657,8 +663,11 @@ function openBatchReport(e){
         ${isFirst?'<span style="font-size:9px;background:#2563eb;color:#fff;border-radius:3px;padding:1px 5px;margin-right:4px">sua intent</span>':''}#${i+1}
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;font-size:11px;color:#1e2a3a;vertical-align:top;max-width:220px">${intent}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;vertical-align:top;max-width:220px">
+      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;vertical-align:top;max-width:200px">
         ${fmtJson(batchCfg)}${dropoutBadge}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e4e8f2;vertical-align:top;max-width:200px;background:rgba(22,163,74,.02)">
+        ${fmtJson(groundTruths[i]||{})}
       </td>
       ${stagesCols}
     </tr>`;
@@ -713,6 +722,7 @@ function openBatchReport(e){
         <th>#</th>
         <th>Intent enviada ao LLM</th>
         <th>JSON gerado sob stress de batch</th>
+        <th style="background:rgba(22,163,74,.05)">Gabarito NetConfEval</th>
         ${hasFull ? '<th style="text-align:center">Sintática</th><th style="text-align:center">Conformidade</th><th style="text-align:center">Mininet</th><th style="text-align:center">Resultado</th>' : ''}
       </tr>
     </thead>
