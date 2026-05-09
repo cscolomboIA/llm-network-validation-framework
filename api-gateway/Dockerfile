@@ -9,9 +9,9 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY api-gateway/    /app/api-gateway/
 COPY verifier/       /app/verifier/
-COPY rag-engine/     /app/rag_engine/
-COPY self-healing-agent/ /app/self_healing_agent/
-COPY mininet-runner/ /app/mininet_runner/
+COPY rag_engine/     /app/rag_engine/
+COPY self_healing_agent/ /app/self_healing_agent/
+COPY mininet_runner/ /app/mininet_runner/
 
 RUN touch /app/verifier/__init__.py \
           /app/rag_engine/__init__.py \
